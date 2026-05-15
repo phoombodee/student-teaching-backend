@@ -7,8 +7,11 @@ const reportRoutes = require('./routes/reports');
 const app = express();
 
 // Middleware setup (before routes)
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
 app.use(cors({
-  origin: 'http://localhost:3000', // React development server
+  origin: [corsOrigin, 'http://localhost:3000'],
+  credentials: true
+}));
   credentials: true
 }));
 
