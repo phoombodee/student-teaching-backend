@@ -300,6 +300,7 @@ exports.updateDay = async (req, res) => {
     
     let report;
     if (isMockDB) {
+      // Get current report
       report = await MockWeeklyReport.findById(id);
     } else {
       report = await WeeklyReport.findById(id);
@@ -337,8 +338,17 @@ exports.updateDay = async (req, res) => {
       });
     }
     
-    report.updatedAt = new Date();
-    await report.save();
+    // Update and save
+    if (isMockDB) {
+      // Use findByIdAndUpdate for mock DB to persist changes
+      report = await MockWeeklyReport.findByIdAndUpdate(id, {
+        days: report.days,
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      report.updatedAt = new Date();
+      await report.save();
+    }
     
     // Convert response to object format for frontend
     const responseData = {
