@@ -1,7 +1,20 @@
-// Simple in-memory database for development/testing
-// This file replaces MongoDB when it's not available
+// File-based database for development/testing when MongoDB is unavailable
+// Data is persisted to data/db.json file
 
-let db = {
+const fs = require('fs');
+const path = require('path');
+
+// Create data directory if it doesn't exist
+const dataDir = path.join(__dirname, '../../data');
+const dbFilePath = path.join(dataDir, 'db.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Default initial data
+const defaultData = {
   reports: [
     {
       _id: '1',
@@ -11,8 +24,8 @@ let db = {
       title: 'Project Introduction',
       status: 'done',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '2',
@@ -22,8 +35,8 @@ let db = {
       title: 'Foundation Building',
       status: 'done',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '3',
@@ -33,8 +46,8 @@ let db = {
       title: 'Frontend Development',
       status: 'inprogress',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '4',
@@ -44,8 +57,8 @@ let db = {
       title: 'API & Database',
       status: 'todo',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '5',
@@ -55,8 +68,8 @@ let db = {
       title: 'Feature Enhancement',
       status: 'todo',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '6',
@@ -66,8 +79,8 @@ let db = {
       title: 'Optimization',
       status: 'todo',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     },
     {
       _id: '7',
@@ -77,11 +90,43 @@ let db = {
       title: 'Final Stretch',
       status: 'todo',
       days: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
   ]
 };
+
+// Load data from file or create default
+let db = null;
+
+function loadDatabase() {
+  try {
+    if (fs.existsSync(dbFilePath)) {
+      const fileContent = fs.readFileSync(dbFilePath, 'utf-8');
+      db = JSON.parse(fileContent);
+      console.log('✓ Database loaded from file: data/db.json');
+    } else {
+      db = JSON.parse(JSON.stringify(defaultData)); // Deep copy
+      saveDatabase();
+      console.log('✓ Database initialized with default data');
+    }
+  } catch (error) {
+    console.error('Error loading database, using defaults:', error.message);
+    db = JSON.parse(JSON.stringify(defaultData));
+  }
+  return db;
+}
+
+function saveDatabase() {
+  try {
+    fs.writeFileSync(dbFilePath, JSON.stringify(db, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Error saving database:', error.message);
+  }
+}
+
+// Initialize on module load
+loadDatabase();
 
 // Query builder with chainable methods
 class QueryBuilder {
@@ -119,8 +164,8 @@ class QueryBuilder {
 
 // Simulate MongoDB connection
 const connectDB = async () => {
-  console.log('✓ Using in-memory database (MongoDB not available)');
-  console.log('  Note: Data will be lost on server restart');
+  console.log('✓ Using file-based database (MongoDB not available)');
+  console.log('  Data persisted to: data/db.json');
   return true;
 };
 
@@ -137,8 +182,13 @@ class WeeklyReport {
   static async findByIdAndUpdate(id, data) {
     const index = db.reports.findIndex(r => r._id === id);
     if (index === -1) return null;
-    const updated = { ...db.reports[index], ...data, updatedAt: new Date() };
+    const updated = { 
+      ...db.reports[index], 
+      ...data, 
+      updatedAt: new Date().toISOString() 
+    };
     db.reports[index] = updated;
+    saveDatabase();
     return updated;
   }
 
@@ -147,6 +197,7 @@ class WeeklyReport {
     if (index === -1) return null;
     const deleted = db.reports[index];
     db.reports.splice(index, 1);
+    saveDatabase();
     return deleted;
   }
 
@@ -154,10 +205,11 @@ class WeeklyReport {
     const withIds = data.map((item, i) => ({
       ...item,
       _id: String(i + 1),
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }));
     db.reports = withIds;
+    saveDatabase();
     return withIds;
   }
 
@@ -166,20 +218,35 @@ class WeeklyReport {
   }
 
   constructor(data) {
-    this._id = String(Date.now());
+    this._id = String(Date.now() + Math.random());
     this.weekId = data.weekId;
     this.label = data.label;
     this.title = data.title;
     this.dates = data.dates;
     this.status = data.status || 'todo';
     this.days = data.days || [];
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    this.createdAt = new Date().toISOString();
+    this.updatedAt = new Date().toISOString();
   }
 
   async save() {
     db.reports.push(this);
+    saveDatabase();
     return this;
+  }
+
+  toObject() {
+    return {
+      _id: this._id,
+      weekId: this.weekId,
+      label: this.label,
+      title: this.title,
+      dates: this.dates,
+      status: this.status,
+      days: this.days,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    };
   }
 }
 

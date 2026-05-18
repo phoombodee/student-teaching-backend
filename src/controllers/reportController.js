@@ -4,6 +4,41 @@ const { useMockDatabase } = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 
+// Helper: Convert days object to array format for storage
+const convertDaysToArray = (daysInput) => {
+  if (!daysInput) return [];
+  
+  // If already an array, return as is
+  if (Array.isArray(daysInput)) return daysInput;
+  
+  // If object, convert to array
+  if (typeof daysInput === 'object') {
+    return Object.entries(daysInput).map(([dayName, dayData]) => ({
+      dayName,
+      tasks: dayData.tasks || [],
+      notes: dayData.notes || '',
+      images: dayData.images || []
+    }));
+  }
+  
+  return [];
+};
+
+// Helper: Convert days array to object format for response
+const convertDaysToObject = (daysArray) => {
+  if (!Array.isArray(daysArray)) return {};
+  
+  const daysObj = {};
+  daysArray.forEach(day => {
+    daysObj[day.dayName] = {
+      tasks: day.tasks || [],
+      notes: day.notes || '',
+      images: day.images || []
+    };
+  });
+  return daysObj;
+};
+
 // GET all weekly reports
 exports.getAllReports = async (req, res) => {
   try {
@@ -19,9 +54,15 @@ exports.getAllReports = async (req, res) => {
       reports = await WeeklyReport.find().sort({ weekId: 1 });
     }
     
+    // Convert all reports to object format for frontend
+    const formattedReports = reports.map(report => ({
+      ...report.toObject ? report.toObject() : report,
+      days: convertDaysToObject(report.days || [])
+    }));
+    
     res.status(200).json({
       success: true,
-      data: reports
+      data: formattedReports
     });
   } catch (error) {
     console.error('Error in getAllReports:', error);
@@ -52,9 +93,15 @@ exports.getReportById = async (req, res) => {
       });
     }
     
+    // Convert response to object format for frontend
+    const responseData = {
+      ...report.toObject ? report.toObject() : report,
+      days: convertDaysToObject(report.days || [])
+    };
+    
     res.status(200).json({
       success: true,
-      data: report
+      data: responseData
     });
   } catch (error) {
     console.error('Error in getReportById:', error);
@@ -80,6 +127,9 @@ exports.createReport = async (req, res) => {
       });
     }
     
+    // Convert days to array format for storage
+    const daysArray = convertDaysToArray(days);
+    
     let report;
     if (isMockDB) {
       report = new MockWeeklyReport({
@@ -88,7 +138,7 @@ exports.createReport = async (req, res) => {
         title,
         dates,
         status: status || 'todo',
-        days: days || []
+        days: daysArray
       });
     } else {
       report = new WeeklyReport({
@@ -97,16 +147,22 @@ exports.createReport = async (req, res) => {
         title,
         dates,
         status: status || 'todo',
-        days: days || []
+        days: daysArray
       });
     }
     
     await report.save();
     
+    // Convert response back to object format for frontend
+    const responseData = {
+      ...report.toObject ? report.toObject() : report,
+      days: convertDaysToObject(report.days || [])
+    };
+    
     res.status(201).json({
       success: true,
       message: 'Report created successfully',
-      data: report
+      data: responseData
     });
   } catch (error) {
     console.error('Error in createReport:', error);
@@ -125,6 +181,9 @@ exports.updateReport = async (req, res) => {
     const { id } = req.params;
     const { weekId, label, title, dates, status, days } = req.body;
     
+    // Convert days object to array for storage
+    const daysArray = convertDaysToArray(days);
+    
     let report;
     if (isMockDB) {
       report = await MockWeeklyReport.findByIdAndUpdate(
@@ -135,7 +194,7 @@ exports.updateReport = async (req, res) => {
           title,
           dates,
           status,
-          days,
+          days: daysArray,
           updatedAt: new Date()
         }
       );
@@ -148,7 +207,7 @@ exports.updateReport = async (req, res) => {
           title,
           dates,
           status,
-          days,
+          days: daysArray,
           updatedAt: new Date()
         },
         { new: true, runValidators: true }
@@ -162,10 +221,16 @@ exports.updateReport = async (req, res) => {
       });
     }
     
+    // Convert response back to object format for frontend
+    const responseData = {
+      ...report.toObject ? report.toObject() : report,
+      days: convertDaysToObject(report.days || [])
+    };
+    
     res.status(200).json({
       success: true,
       message: 'Report updated successfully',
-      data: report
+      data: responseData
     });
   } catch (error) {
     console.error('Error in updateReport:', error);
@@ -247,6 +312,11 @@ exports.updateDay = async (req, res) => {
       });
     }
     
+    // Ensure days is array
+    if (!Array.isArray(report.days)) {
+      report.days = [];
+    }
+    
     // Find and update the day
     const dayIndex = report.days.findIndex(d => d.dayName === dayName);
     
@@ -270,10 +340,16 @@ exports.updateDay = async (req, res) => {
     report.updatedAt = new Date();
     await report.save();
     
+    // Convert response to object format for frontend
+    const responseData = {
+      ...report.toObject ? report.toObject() : report,
+      days: convertDaysToObject(report.days || [])
+    };
+    
     res.status(200).json({
       success: true,
       message: 'Day updated successfully',
-      data: report
+      data: responseData
     });
   } catch (error) {
     console.error('Error in updateDay:', error);
